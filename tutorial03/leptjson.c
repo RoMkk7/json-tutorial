@@ -94,16 +94,36 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
     for (;;) {
         char ch = *p++;
         switch (ch) {
+            case '\\':
+                switch(*p++){
+                    case '\\': PUTC(c, '\\'); break;
+                    case '\"': PUTC(c, '\"'); break;
+                    case '/': PUTC(c, '/'); break;
+                    case 'b': PUTC(c, '\b'); break;
+                    case 'f': PUTC(c, '\f'); break;
+                    case 'n': PUTC(c, '\n'); break;
+                    case 'r': PUTC(c, '\r'); break;
+                    case 't': PUTC(c, '\t'); break;
+                    default: 
+                        c->top = head;
+                        return LEPT_PARSE_INVALID_STRING_ESCAPE;
+                }
+                break;
             case '\"':
                 len = c->top - head;
-                lept_set_string(v, (const char*)lept_context_pop(c, len), len);
+                lept_set_string(v, (const char*)lept_context_pop(c, len), len); /* 将所有的c->json压入stack后，从stack中获取string，输出到v中*/
                 c->json = p;
                 return LEPT_PARSE_OK;
             case '\0':
                 c->top = head;
                 return LEPT_PARSE_MISS_QUOTATION_MARK;
             default:
-                PUTC(c, ch);
+                if (ch < (0x20))
+                {
+                    c->top = head;
+                    return LEPT_PARSE_INVALID_STRING_CHAR;
+                }
+                PUTC(c, ch); /* 将c->json以char为单位压入c->stack */
         }
     }
 }
@@ -154,11 +174,19 @@ lept_type lept_get_type(const lept_value* v) {
 
 int lept_get_boolean(const lept_value* v) {
     /* \TODO */
+    assert(v != NULL && (v->type == LEPT_FALSE || v->type == LEPT_TRUE));
+    if (v->type == LEPT_TRUE)
+        return 1;
     return 0;
 }
 
 void lept_set_boolean(lept_value* v, int b) {
     /* \TODO */
+    assert(v != NULL);
+    if (b == 0)
+        v->type = LEPT_FALSE;
+    else
+        v->type = LEPT_TRUE;
 }
 
 double lept_get_number(const lept_value* v) {
@@ -168,6 +196,9 @@ double lept_get_number(const lept_value* v) {
 
 void lept_set_number(lept_value* v, double n) {
     /* \TODO */
+    assert(v != NULL);
+    v->type = LEPT_NUMBER;
+    v->u.n = n;
 }
 
 const char* lept_get_string(const lept_value* v) {
